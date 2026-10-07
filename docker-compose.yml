@@ -1,0 +1,22 @@
+services:
+  biometric-vision:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: biometric-vision:latest
+    container_name: biometric_face_recognition
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - SIMILARITY_THRESHOLD=0.38
+      # Sur Linux, utilisez /dev/video0 ou l'index de la caméra
+      # Vous pouvez aussi fournir une URL de flux RTSP ou vidéo (ex: rtsp://192.168.1.50:554/stream)
+      - WEBCAM_SOURCE=0
+    volumes:
+      # Persistance de la base de données de visages enregistrés
+      - ./faces_db:/app/faces_db
+    # Décommentez la ligne ci-dessous si vous exécutez sur Linux ou WSL2 avec usbipd
+    # devices:
+    #   - /dev/video0:/dev/video0
