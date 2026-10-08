@@ -7,14 +7,17 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=5000 \
     WEBCAM_SOURCE=0
 
-# Installation des dépendances système pour OpenCV et MediaPipe
+# Installation centralisée de TOUTES les dépendances système (OpenCV + MediaPipe)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
+    libxrender-dev \
     v4l-utils \
+    libegl1 \
+    libgles2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Répertoire de travail

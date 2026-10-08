@@ -1,0 +1,30 @@
+# Environnement et secrets
+.env
+.env.bak
+*.key
+*.csr
+mosquitto/config/certs/*.key
+mosquitto/config/certs/*.csr
+mosquitto/config/passwd
+
+# Données et logs des conteneurs
+mosquitto/data/*
+!mosquitto/data/.gitkeep
+mosquitto/log/*
+!mosquitto/log/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.venv/
+env/
+venv/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+

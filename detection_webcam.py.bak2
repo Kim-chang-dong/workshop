@@ -1,5 +1,4 @@
 import os
-import json
 import cv2
 import time
 import threading
@@ -157,8 +156,8 @@ class CameraWorker:
             
         if self.cap.isOpened():
             self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # Réduit le buffer pour 0 latence
             print(f"[CAMERA] Source vidéo '{self.camera_index}' ouverte avec succès.")
         else:

@@ -1,0 +1,8 @@
+# Généré par deploy_dashboard.sh — appliqué au seul listener WebSockets (9001)
+user dashboard
+topic read sentinel/telemetry
+topic read sentinel/alerts
+topic read sentinel/host
+topic read sentinel/status
+topic read $SYS/#
+topic write sentinel/cmd

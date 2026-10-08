@@ -7,3 +7,7 @@ __pycache__/
 .venv/
 env/
 *.pt
+mosquitto/
+timescaledb/
+grafana/
+scripts/

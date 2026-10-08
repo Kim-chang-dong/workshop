@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: Sentinel TimescaleDB
+    type: postgres
+    access: proxy
+    url: timescaledb:5432
+    user: sentinel_user
+    secureJsonData:
+      password: sentinel_password
+    jsonData:
+      database: sentinel_db
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+      postgresVersion: 1500
+      timescaledb: true
+    isDefault: true
+    editable: true
+

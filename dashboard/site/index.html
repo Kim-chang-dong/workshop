@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data: http: https:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Sentinel-X — Supervision</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div>
+        <h1>Sentinel-X</h1>
+        <p class="sub">Centre de commandement tactique · Groupe 16</p>
+      </div>
+    </div>
+
+    <div class="status">
+      <div class="pill" id="chip-broker" data-state="off"><span class="dot"></span><span class="txt">Broker déconnecté</span></div>
+      <div class="pill" id="chip-node" data-state="off"><span class="dot"></span><span class="txt">Boîtier : aucune donnée</span></div>
+      <span class="clock" id="last-seen">—</span>
+      <button type="button" class="ghost" id="btn-toggle-conn" aria-expanded="true" aria-controls="connbar">Connexion</button>
+    </div>
+  </header>
+
+  <section class="connbar" id="connbar" aria-label="Connexion au broker">
+    <label><span>URL WebSocket</span>
+      <input id="in-url" type="text" placeholder="wss://IP:PORT/mqtt" autocomplete="off" spellcheck="false">
+    </label>
+    <label><span>Utilisateur</span>
+      <input id="in-user" type="text" autocomplete="username" spellcheck="false">
+    </label>
+    <label><span>Mot de passe</span>
+      <input id="in-pass" type="password" autocomplete="current-password">
+    </label>
+    <div class="connbtns">
+      <button id="btn-connect" type="button" class="primary">Se connecter</button>
+      <button id="btn-disconnect" type="button" class="ghost" disabled>Se déconnecter</button>
+    </div>
+    <p class="connmsg" id="conn-msg" role="status"></p>
+  </section>
+
+  <main class="grid">
+    <!-- Mesures -->
+    <section class="tile t-temp" aria-label="Température">
+      <div class="tile-head"><span class="tile-label">Température</span><span class="tile-unit">°C</span></div>
+      <div class="tile-value" id="v-temp">—</div>
+      <div class="spark"><canvas id="sp-temp"></canvas></div>
+    </section>
+    <section class="tile t-hum" aria-label="Humidité">
+      <div class="tile-head"><span class="tile-label">Humidité</span><span class="tile-unit">%</span></div>
+      <div class="tile-value" id="v-hum">—</div>
+      <div class="spark"><canvas id="sp-hum"></canvas></div>
+    </section>
+    <section class="tile t-gas" aria-label="Gaz">
+      <div class="tile-head"><span class="tile-label">Gaz MQ-2</span><span class="tile-unit">ADC 0–1023</span></div>
+      <div class="tile-value" id="v-gas">—</div>
+      <div class="spark"><canvas id="sp-gas"></canvas></div>
+    </section>
+    <section class="tile t-motion" aria-label="Présence">
+      <div class="tile-head"><span class="tile-label">Présence PIR</span><span class="tile-unit" id="v-motion-count">0 détection</span></div>
+      <div class="tile-value" id="v-motion">—</div>
+      <div class="bars" id="motion-bars" aria-hidden="true"></div>
+    </section>
+    <section class="tile t-alert" id="tile-alert" aria-label="Alerte boîtier">
+      <div class="tile-head"><span class="tile-label">Alerte boîtier</span><span class="tile-unit">champ alert</span></div>
+      <div class="tile-value" id="v-alert">—</div>
+      <p class="tile-foot" id="alert-since">Aucun déclenchement</p>
+    </section>
+
+    <!-- Courbes -->
+    <section class="card c-env">
+      <header class="card-head"><h2>Environnement</h2><span class="hint">Température et humidité, temps réel</span></header>
+      <div class="chartbox"><canvas id="chart-env"></canvas></div>
+    </section>
+
+    <section class="card c-cam">
+      <header class="card-head"><h2>Vision</h2><span class="live-tag" id="cam-tag">hors ligne</span></header>
+      <div class="webcam" id="webcam-box">
+        <img id="webcam" alt="Flux vidéo de la webcam">
+        <p class="placeholder" id="webcam-msg">Flux non configuré : renseigner webcamUrl dans config.js.</p>
+      </div>
+    </section>
+
+    <section class="card c-gas">
+      <header class="card-head"><h2>Gaz et présence</h2><span class="hint">MQ-2 brut et état du PIR</span></header>
+      <div class="chartbox"><canvas id="chart-gas"></canvas></div>
+    </section>
+
+    <section class="card c-ctrl">
+      <header class="card-head"><h2>Actionneurs</h2><span class="hint">Publication sur le topic de commande</span></header>
+      <div class="ctrl-row">
+        <div>
+          <p class="ctrl-title">Buzzer d'alarme</p>
+          <p class="ctrl-sub">Mono-ton, piloté par le firmware</p>
+        </div>
+        <button type="button" class="switch" id="sw-buzzer" role="switch" aria-checked="false" disabled>
+          <span class="knob"></span><span class="sr">Buzzer</span>
+        </button>
+      </div>
+      <div class="ctrl-block">
+        <p class="ctrl-title">LED de statut</p>
+        <div class="seg" role="radiogroup" aria-label="LED">
+          <button type="button" role="radio" aria-checked="false" data-led="rouge" disabled><span class="led red"></span>Rouge</button>
+          <button type="button" role="radio" aria-checked="false" data-led="verte" disabled><span class="led green"></span>Verte</button>
+          <button type="button" role="radio" aria-checked="false" data-led="off" disabled><span class="led off"></span>Éteinte</button>
+        </div>
+      </div>
+      <p class="ctrl-last" id="cmd-last">Aucune commande envoyée.</p>
+    </section>
+
+    <!-- Alertes -->
+    <section class="card c-alerts">
+      <header class="card-head"><h2>Journal des alertes</h2><span class="count" id="alerts-count">0</span></header>
+      <ol class="feed" id="alerts-feed">
+        <li class="empty">Aucune alerte reçue. Les alertes de la vision, de l'IA prédictive et du boîtier apparaîtront ici.</li>
+      </ol>
+    </section>
+
+    <!-- MCO -->
+    <section class="card c-mco">
+      <header class="card-head"><h2>Maintien en condition opérationnelle</h2></header>
+
+      <h3>PC Serveur Local</h3>
+      <div class="meter"><span>CPU</span><div class="track"><div class="fill" id="h-cpu-bar"></div></div><b id="h-cpu">n/t</b></div>
+      <div class="meter"><span>RAM</span><div class="track"><div class="fill" id="h-ram-bar"></div></div><b id="h-ram">n/t</b></div>
+      <div class="meter"><span>Disque</span><div class="track"><div class="fill" id="h-disk-bar"></div></div><b id="h-disk">n/t</b></div>
+      <div class="kv"><span>Logs MQTT</span><b id="h-logs">n/t</b></div>
+
+      <h3>Broker Mosquitto</h3>
+      <div class="stats">
+        <div><b id="s-clients">—</b><span>clients connectés</span></div>
+        <div><b id="s-msgmin">—</b><span>messages / min</span></div>
+        <div><b id="s-pubmin">—</b><span>publish / min</span></div>
+        <div><b id="s-bytesmin">—</b><span>reçus / min</span></div>
+        <div><b id="s-msgtotal">—</b><span>messages total</span></div>
+        <div><b id="s-dropped">—</b><span>publish perdus</span></div>
+      </div>
+      <div class="kv"><span>Version</span><b id="s-version">—</b></div>
+      <div class="kv"><span>Mémoire heap</span><b id="s-heap">—</b></div>
+
+      <h3>Boîtier ESP8266</h3>
+      <div class="kv"><span>Adresse IP</span><b id="n-ip">n/t</b></div>
+      <div class="kv"><span>Signal Wi-Fi</span><b id="n-rssi">n/t</b></div>
+      <div class="kv"><span>Uptime</span><b id="n-uptime">n/t</b></div>
+      <div class="kv"><span>Messages reçus</span><b id="n-count">0</b></div>
+      <div class="kv"><span>Intervalle moyen</span><b id="n-interval">—</b></div>
+      <div class="kv"><span>Last Will</span><b id="n-lwt">n/t</b></div>
+      <p class="legend">n/t : non transmis par la source.</p>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="vendor/mqtt.min.js"></script>
+  <script src="vendor/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

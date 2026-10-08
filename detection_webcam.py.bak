@@ -1,5 +1,4 @@
 import os
-import json
 import cv2
 import time
 import threading
@@ -157,82 +156,19 @@ class CameraWorker:
             
         if self.cap.isOpened():
             self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # Réduit le buffer pour 0 latence
             print(f"[CAMERA] Source vidéo '{self.camera_index}' ouverte avec succès.")
         else:
             print(f"[ATTENTION] Impossible d'ouvrir la source vidéo '{self.camera_index}'.")
 
     def _capture_loop(self):
-        import threading
-        import numpy as np
-
         fps_counter = 0
         last_fps_time = time.time()
         current_fps = 0.0
         consecutive_read_failures = 0
-
-        # --- Découplage capture / IA ---
-        ia_event = threading.Event()
-        ia_busy = threading.Event()
-        ia_input = {"frame": None}
-        overlay_lock = threading.Lock()
-        overlay = {"mask": None, "drawn": None}
-
-        def ia_worker():
-            while self.running:
-                if not ia_event.wait(timeout=0.5):
-                    continue
-                ia_event.clear()
-                frame_ia = ia_input["frame"]
-                try:
-                    annotated, status_info = engine.process_frame(frame_ia.copy())
-
-                    if annotated is not None and annotated.shape == frame_ia.shape:
-                        mask = np.any(annotated != frame_ia, axis=2)
-                    else:
-                        mask = None
-                    with overlay_lock:
-                        overlay["mask"] = mask
-                        overlay["drawn"] = annotated
-
-                    score_max = 0.0
-                    if status_info["personnes"]:
-                        score_max = max(p["score"] for p in status_info["personnes"])
-
-                    with self.lock:
-                        self.statut = {
-                            "humain_present": status_info["humain_present"],
-                            "score": float(round(score_max, 3)),
-                            "visages_detectes": status_info["visages_detectes"],
-                            "alerte_intrus": status_info["alerte_intrus"],
-                            "zone_securisee": status_info["zone_securisee"],
-                            "personnes": status_info["personnes"],
-                            "total_bdd": status_info["total_bdd"],
-                            "liste_bdd": status_info["liste_bdd"],
-                            "fps": self.statut.get("fps", 0.0)
-                        }
-
-                    if mqtt_notifier and status_info.get("alerte_intrus"):
-                        mqtt_notifier.publish_event(
-                            source="vision",
-                            alert_type="intrusion",
-                            severite="haute",
-                            details={
-                                "visages_detectes": status_info["visages_detectes"],
-                                "score": float(round(score_max, 3)),
-                                "message": "Intrus détecté (visage non reconnu)"
-                            }
-                        )
-                except Exception as e:
-                    print(f"[ERREUR IA] {e}")
-                    traceback.print_exc()
-                finally:
-                    ia_busy.clear()
-
-        threading.Thread(target=ia_worker, daemon=True).start()
-
+        
         while self.running:
             try:
                 if self.cap is None or not self.cap.isOpened():
@@ -249,7 +185,7 @@ class CameraWorker:
                         consecutive_read_failures = 0
                     time.sleep(0.02)
                     continue
-
+                    
                 consecutive_read_failures = 0
                 fps_counter += 1
                 now = time.time()
@@ -258,25 +194,44 @@ class CameraWorker:
                     fps_counter = 0
                     last_fps_time = now
 
-                if not ia_busy.is_set():
-                    ia_input["frame"] = frame.copy()
-                    ia_busy.set()
-                    ia_event.set()
-
-                live = frame.copy()
-                with overlay_lock:
-                    mask = overlay["mask"]
-                    drawn = overlay["drawn"]
-                if mask is not None and mask.shape == live.shape[:2]:
-                    live[mask] = drawn[mask]
+                # Traitement biométrique sécurisé
+                annotated, status_info = engine.process_frame(frame)
+                
+                score_max = 0.0
+                if status_info["personnes"]:
+                    score_max = max(p["score"] for p in status_info["personnes"])
 
                 with self.lock:
                     self.raw_frame = frame.copy()
-                    self.annotated_frame = live
+                    self.annotated_frame = annotated
                     self.frame_id += 1
-                    self.statut["fps"] = round(current_fps, 1)
+                    self.statut = {
+                        "humain_present": status_info["humain_present"],
+                        "score": float(round(score_max, 3)),
+                        "visages_detectes": status_info["visages_detectes"],
+                        "alerte_intrus": status_info["alerte_intrus"],
+                        "zone_securisee": status_info["zone_securisee"],
+                        "personnes": status_info["personnes"],
+                        "total_bdd": status_info["total_bdd"],
+                        "liste_bdd": status_info["liste_bdd"],
+                        "fps": round(current_fps, 1)
+                    }
+
+                # Transmission temps réel de l'alerte à la stack Sentinel-X via MQTT
+                if mqtt_notifier and status_info.get("alerte_intrus"):
+                    mqtt_notifier.publish_event(
+                        source="vision",
+                        alert_type="intrusion",
+                        severite="haute",
+                        details={
+                            "visages_detectes": status_info["visages_detectes"],
+                            "score": float(round(score_max, 3)),
+                            "message": "Intrus détecté (visage non reconnu)"
+                        }
+                    )
 
             except Exception as e:
+                # Protection absolue : ne jamais laisser mourir le thread de capture !
                 print(f"[ERREUR CAPTURE] {e}")
                 traceback.print_exc()
                 time.sleep(0.05)

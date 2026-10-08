@@ -107,8 +107,8 @@ services:
     volumes:
       - ./faces_db:/app/faces_db
     # Sur Linux natif ou WSL2 avec usbipd pour attacher la webcam USB :
-    # devices:
-      # - /dev/video0:/dev/video0
+    devices:
+      - /dev/video0:/dev/video0
     depends_on:
       - mqtt
     networks:

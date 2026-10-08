@@ -1,0 +1,55 @@
+# Généré par deploy_dashboard.sh — chargé automatiquement par docker compose.
+# Supprimer ce fichier (rollback) rétablit les ports et retire les nouveaux services.
+services:
+  mqtt:
+    ports: !override
+      - "127.0.0.1:1883:1883"   # MQTT clair : plus exposé hors de la VM
+      - "8883:8883"             # MQTTS ESP8266 (filtré par DOCKER-USER)
+    volumes:
+      - ./mosquitto/config/acl:/mosquitto/config/acl:ro
+
+  timescaledb:
+    ports: !override
+      - "127.0.0.1:5432:5432"   # PostgreSQL : accès local VM uniquement
+
+  biometric-vision:
+    ports: !reset []            # Flask n'est plus exposé : passe par nginx (443/8443)
+
+  host-metrics:
+    build:
+      context: ./host_metrics
+      network: host
+    image: sentinel-host-metrics:latest
+    container_name: sentinel_host_metrics
+    restart: unless-stopped
+    environment:
+      MQTT_BROKER: mqtt
+      MQTT_PORT: "1883"
+      MQTT_USER: ${MQTT_USER:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      MQTT_TOPIC: sentinel/host
+      INTERVAL_S: "5"
+      LOG_FILE: /mqttlog/mosquitto.log
+    volumes:
+      - ./mosquitto/log:/mqttlog:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [mqtt]
+    networks: [sentinel_net]
+
+  dashboard:
+    image: nginx:stable-alpine
+    container_name: sentinel_dashboard
+    restart: unless-stopped
+    ports:
+      - "192.168.50.10:443:443"
+      - "192.168.50.10:8443:8443"
+    volumes:
+      - ./dashboard/site:/usr/share/nginx/html:ro
+      - ./dashboard/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./dashboard/certs:/etc/nginx/certs:ro
+      - ./dashboard/htpasswd:/etc/nginx/htpasswd:ro
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [mqtt, biometric-vision]
+    networks: [sentinel_net]
